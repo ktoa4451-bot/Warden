@@ -1,0 +1,46 @@
+# Положите этот файл в репозиторий как .github/workflows/build.yml
+# (на телефоне: Add file -> Create new file -> имя  .github/workflows/build.yml -> вставьте текст)
+# Рядом в корень репозитория загрузите ZIP проекта (Add file -> Upload files).
+name: Build WardenCity
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Unpack project ZIP
+        run: |
+          ZIP=$(ls -t *.zip | head -n1)
+          echo "Using $ZIP"
+          rm -rf _project && mkdir _project
+          unzip -q "$ZIP" -d _project
+          POM=$(find _project -name pom.xml -not -path '*/target/*' | head -n1)
+          echo "PROJECT_DIR=$(dirname "$POM")" >> "$GITHUB_ENV"
+
+      - name: Build with Maven
+        run: mvn -B -f "$PROJECT_DIR/pom.xml" clean package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WardenCity-jar
+          path: ${{ env.PROJECT_DIR }}/target/WardenCity.jar
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: WardenCity build ${{ github.run_number }}
+          files: ${{ env.PROJECT_DIR }}/target/WardenCity.jar
